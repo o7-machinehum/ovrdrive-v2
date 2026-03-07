@@ -20,7 +20,7 @@
 #define FREQ_SYS (120000000)
 
 #if(defined DEBUG)
-#define UART1_BAUD (5000000)
+#define UART1_BAUD (115200)
 #endif
 
 /* Blink time in ms */
@@ -63,13 +63,13 @@ int main()
 	/* Configure serial debugging for printf()/log_printf()... */
 	UART1_init(UART1_BAUD, FREQ_SYS);
 #endif
-	log_printf("HydraUSB3_MSC Start\n");
-	log_printf("ChipID(Hex)=%02X\n", R8_CHIP_ID);
+	log_printf("HydraUSB3_MSC Start\r\n");
+	log_printf("ChipID(Hex)=%02X\r\n", R8_CHIP_ID);
 
 	memset(&unique_id, 0, 8);
 	FLASH_ROMA_READ(FLASH_ROMA_UID_ADDR, (uint32_t*)&unique_id, 8);
 
-	log_printf("HydraUSB3_MSC FW v0.1 (CPU Freq=%d MHz)\n", (FREQ_SYS/1000000));
+	log_printf("HydraUSB3_MSC FW v0.1 (CPr Freq=%d MHz)\r\n", (FREQ_SYS/1000000));
 
 	// USB2 & USB3 Init
 	R32_USB_CONTROL = 0;
@@ -93,7 +93,7 @@ int main()
 	Udisk_Capability = 1024; /* 1024 sectors * 512 bytes = 512KB dummy disk */
 	Udisk_Status |= DEF_UDISK_EN_FLAG;
 
-	log_printf("MSC ready, entering main loop\n");
+	log_printf("MSC ready, entering main loop\r\n");
 
 	// Infinite loop - MSC protocol handled via interrupts + main loop polling
 	while(1)
@@ -111,10 +111,10 @@ int main()
  */
 __attribute__((interrupt("WCH-Interrupt-fast"))) void HardFault_Handler(void)
 {
-	printf("HardFault\n");
-	printf(" SP=0x%08X\n", __get_SP());
-	printf(" MIE=0x%08X\n", __get_MIE());
-	printf(" MSTATUS=0x%08X\n", __get_MSTATUS());
-	printf(" MCAUSE=0x%08X\n", __get_MCAUSE());
+	printf("HardFault\r\n");
+	printf(" SP=0x%08X\r\n", __get_SP());
+	printf(" MIE=0x%08X\r\n", __get_MIE());
+	printf(" MSTATUS=0x%08X\r\n", __get_MSTATUS());
+	printf(" MCAUSE=0x%08X\r\n", __get_MCAUSE());
 	bsp_wait_ms_delay(1);
 }

@@ -12,8 +12,7 @@ else
 endif
 
 # Define option(s) defined in pre-processor compiler option(s)
-#DEFINE_OPTS = -DDEBUG=1
-DEFINE_OPTS = -DMSC_DEVICE
+DEFINE_OPTS = -DMSC_DEVICE -DDEBUG=1
 # Optimisation option(s)
 OPTIM_OPTS = -O3
 # Debug option(s)

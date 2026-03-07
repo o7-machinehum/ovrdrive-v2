@@ -1,0 +1,10 @@
+CompileFlags:
+  Add:
+    - --target=riscv32-unknown-elf
+    - -isystem/usr/local/lib/gcc/riscv-none-elf/12.2.0/include
+    - -isystem/usr/local/lib/gcc/riscv-none-elf/12.2.0/include-fixed
+    - -isystem/usr/local/riscv-none-elf/include
+  Remove:
+    - -march=rv32imac_zicsr
+    - -msmall-data-limit=*
+    - --specs=*
