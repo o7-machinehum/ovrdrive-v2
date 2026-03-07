@@ -1,0 +1,6 @@
+[submodule "wch-ch56x-isp"]
+	path = wch-ch56x-isp
+	url = git@github.com:hydrausb3/wch-ch56x-isp.git
+[submodule "wch-ch56x-bsp"]
+	path = wch-ch56x-bsp
+	url = git@github.com:o7-machinehum/wch-ch56x-bsp.git
