@@ -255,6 +255,8 @@ void UDISK_SCSI_CMD_Deal( void )
         }
         Udisk_Transfer_Status |= DEF_UDISK_CSW_UP_FLAG;
 
+        log_printf("CBW: cmd=0x%02X len=%d\r\n", mBOC.mCBW.mCBW_CB_Buf[ 0 ], UDISK_Transfer_DataLen);
+
         /* Process SCSI command */
         switch( mBOC.mCBW.mCBW_CB_Buf[ 0 ] )
         {
@@ -592,6 +594,7 @@ void UDISK_Bulk_UpData( void )
 void UDISK_Up_CSW( void )
 {
     Udisk_Transfer_Status = 0x00;
+    log_printf("CSW: sta=%d\r\n", Udisk_CSW_Status);
 
     mBOC.mCSW.mCSW_Sig[ 0 ] = 'U';
     mBOC.mCSW.mCSW_Sig[ 1 ] = 'S';
@@ -678,6 +681,9 @@ void UDISK_Up_OnePack( void )
         R8_UEP0_TX_CTRL = UEP_T_RES_NAK;
         R8_UEP0_RX_CTRL = UEP_R_RES_NAK;
 
+        /* Enable hardware auto-toggle for polling loop */
+        R8_UEP1_TX_CTRL |= RB_UEP_T_AUTOTOG;
+
         /* Start eMMC multi-block read (CMD18) */
         R32_EMMC_DMA_BEG1 = (uint32_t)UDisk_In_Buf;
         R32_EMMC_TRAN_MODE = (1<<4)|(1<<1); /* auto gap stop */
@@ -692,12 +698,12 @@ void UDISK_Up_OnePack( void )
         {
             if( ( usbtran < (sdtran-1) ) && ( (R8_USB_INT_FG & RB_USB_IF_TRANSFER) || flag ) )
             {
+                R8_USB_INT_FG = RB_USB_IF_TRANSFER;
                 flag = 0;
                 R8_UEP1_TX_CTRL = (R8_UEP1_TX_CTRL & ~RB_UEP_TRES_MASK) | UEP_T_RES_NAK;
                 R32_UEP1_TX_DMA = (uint32_t)(uint8_t *)(UDisk_In_Buf + usbstep * 512);
                 R16_UEP1_T_LEN = 512;
                 R8_UEP1_TX_CTRL = (R8_UEP1_TX_CTRL & ~RB_UEP_TRES_MASK) | UEP_T_RES_ACK;
-                R8_USB_INT_FG = RB_USB_IF_TRANSFER;
 
                 usbtran++;
                 usbstep++;
@@ -740,12 +746,12 @@ void UDISK_Up_OnePack( void )
         {
             if( (R8_USB_INT_FG & RB_USB_IF_TRANSFER) || flag )
             {
+                R8_USB_INT_FG = RB_USB_IF_TRANSFER;
                 flag = 0;
                 R8_UEP1_TX_CTRL = (R8_UEP1_TX_CTRL & ~RB_UEP_TRES_MASK) | UEP_T_RES_NAK;
                 R32_UEP1_TX_DMA = (uint32_t)(uint8_t *)(UDisk_In_Buf + usbstep * 512);
                 R16_UEP1_T_LEN = 512;
                 R8_UEP1_TX_CTRL = (R8_UEP1_TX_CTRL & ~RB_UEP_TRES_MASK) | UEP_T_RES_ACK;
-                R8_USB_INT_FG = RB_USB_IF_TRANSFER;
 
                 usbtran++;
                 usbstep++;
@@ -753,8 +759,8 @@ void UDISK_Up_OnePack( void )
                 if( usbtran == sdtran )
                 {
                     while( !(R8_USB_INT_FG & RB_USB_IF_TRANSFER) );
-                    R8_UEP1_TX_CTRL = (R8_UEP1_TX_CTRL & ~RB_UEP_TRES_MASK) | UEP_T_RES_NAK;
                     R8_USB_INT_FG = RB_USB_IF_TRANSFER;
+                    R8_UEP1_TX_CTRL = (R8_UEP1_TX_CTRL & ~RB_UEP_TRES_MASK) | UEP_T_RES_NAK;
                     break;
                 }
             }
@@ -776,6 +782,9 @@ void UDISK_Up_OnePack( void )
             if( s != CMD_NULL ) break;
         }
         R16_EMMC_INT_FG = 0xffff;
+
+        /* Disable auto-toggle before re-enabling ISR (ISR does manual toggle) */
+        R8_UEP1_TX_CTRL &= ~RB_UEP_T_AUTOTOG;
 
         PFIC_EnableIRQ(USBHS_IRQn);
         R8_UEP0_TX_CTRL = uep0txsave;
@@ -920,6 +929,9 @@ void UDISK_Down_OnePack( void )
         R8_UEP0_TX_CTRL = UEP_T_RES_NAK;
         R8_UEP0_RX_CTRL = UEP_R_RES_NAK;
 
+        /* Enable hardware auto-toggle for polling loop */
+        R8_UEP1_RX_CTRL |= RB_UEP_R_AUTOTOG;
+
         preqnum = UDISK_Transfer_DataLen / 512;
         UDISK_Transfer_DataLen = 0;
 
@@ -1004,6 +1016,10 @@ void UDISK_Down_OnePack( void )
         R16_EMMC_INT_FG = 0xffff;
 
         R32_UEP1_RX_DMA = (uint32_t)(uint8_t *)endp1Rbuff;
+
+        /* Disable auto-toggle before re-enabling ISR (ISR does manual toggle) */
+        R8_UEP1_RX_CTRL &= ~RB_UEP_R_AUTOTOG;
+
         PFIC_EnableIRQ(USBHS_IRQn);
         R8_UEP0_TX_CTRL = uep0txsave;
         R8_UEP0_RX_CTRL = uep0rxsave;

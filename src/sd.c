@@ -77,6 +77,7 @@ uint8_t SDSetRCA(PSD_PARAMETER pEMMCPara)
 	return sta;
 }
 
+/* Read the CSD (Card specific data)*/
 uint8_t SDReadCSD(PSD_PARAMETER pEMMCPara)
 {
 	uint32_t cmd_arg_val;
@@ -307,11 +308,13 @@ static uint8_t SD_do_init(PSD_PARAMETER pEMMCPara, uint8_t mode)
 	sta = SD_ReadSCR(pEMMCPara, scr_buf);
 	if(sta != CMD_SUCCESS) return OP_FAILED;
 
-	/* Switch to high-speed clock */
+	/* Switch to high-speed clock (divider: lower = faster, 10 = ~12MHz) */
 	if(mode < 4)
 		R16_EMMC_CLK_DIV = RB_EMMC_CLKMode | RB_EMMC_PHASEINV | RB_EMMC_CLKOE | 10;
+		// R16_EMMC_CLK_DIV = RB_EMMC_CLKMode | RB_EMMC_PHASEINV | RB_EMMC_CLKOE | LOWEMMCCLK; /* Slow */
 	else
 		R16_EMMC_CLK_DIV = RB_EMMC_CLKMode | RB_EMMC_CLKOE | 10;
+		// R16_EMMC_CLK_DIV = RB_EMMC_CLKMode | RB_EMMC_CLKOE | LOWEMMCCLK; /* Slow */
 
 	return OP_SUCCESS;
 }
