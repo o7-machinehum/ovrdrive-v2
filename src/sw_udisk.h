@@ -15,6 +15,11 @@ extern "C" {
 #include "CH56x_usb30_devbulk.h"
 #include "CH56x_usb20_devbulk.h"
 #include "CH56x_usb30_devbulk_LIB.h"
+#include "CH56x_emmc.h"
+
+/******************************************************************************/
+/* eMMC DMA circular buffer size (40KB = 10 x 4KB blocks) */
+#define UDISKSIZE (1024*4*10)
 
 /******************************************************************************/
 /* BulkOnly Mass Storage class-specific requests */
@@ -124,6 +129,10 @@ extern volatile uint32_t Udisk_Capability;
 
 extern volatile uint8_t  UDISK_OutPackflag;
 extern volatile uint8_t  UDISK_InPackflag;
+
+extern EMMC_PARAMETER TF_EMMCParam;
+extern __attribute__((aligned(16))) uint8_t UDisk_In_Buf[UDISKSIZE] __attribute__((section(".DMADATA")));
+extern __attribute__((aligned(16))) uint8_t UDisk_Out_Buf[UDISKSIZE] __attribute__((section(".DMADATA")));
 
 extern uint8_t  UDISK_Inquity_Tab[ ];
 extern uint8_t  const  UDISK_Rd_Format_Capacity[ ];

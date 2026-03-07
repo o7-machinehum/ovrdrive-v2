@@ -2,7 +2,7 @@
 * File Name          : Main.c
 * Description        : USB Mass Storage Device (MSC/BOT) using HydraUSB3 BSP
 *                      USB2 High Speed and USB3 Super Speed
-*                      Dummy RAM-backed storage for stack validation
+*                      eMMC/SD storage via CH569 EMMC controller
 * SPDX-License-Identifier: Apache-2.0
 *******************************************************************************/
 #include "CH56x_common.h"
@@ -14,6 +14,7 @@
 #include "CH56x_usb_devbulk_desc_cmd.h"
 
 #include "sw_udisk.h"
+#include "sd.h"
 
 #undef FREQ_SYS
 /* System clock / MCU frequency in Hz */
@@ -89,9 +90,27 @@ int main()
 	/* USB3.0 initialization */
 	USB30D_init(ENABLE);
 
-	/* Enable Udisk with dummy capacity */
-	Udisk_Capability = 1024; /* 1024 sectors * 512 bytes = 512KB dummy disk */
-	Udisk_Status |= DEF_UDISK_EN_FLAG;
+	/* SD card init */
+	log_printf("Initializing SD card...\r\n");
+
+	uint8_t sta = SDCardInit(&TF_EMMCParam);
+
+	/* Enable EMMC interrupt AFTER init (matches WCH reference) */
+	PFIC_EnableIRQ(EMMC_IRQn);
+	TF_EMMCParam.EMMCOpErr = 0;
+
+	if(sta == OP_SUCCESS)
+	{
+		Udisk_Capability = TF_EMMCParam.EMMCSecNum;
+		Udisk_Status |= DEF_UDISK_EN_FLAG;
+		log_printf("SD OK: %d sectors (%d MB)\r\n",
+			TF_EMMCParam.EMMCSecNum,
+			TF_EMMCParam.EMMCSecNum / 2048);
+	}
+	else
+	{
+		log_printf("SD init FAILED (sta=%d)\r\n", sta);
+	}
 
 	log_printf("MSC ready, entering main loop\r\n");
 
