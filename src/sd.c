@@ -485,9 +485,9 @@ static uint8_t SD_do_init(PSD_PARAMETER pEMMCPara, uint8_t mode)
 	 * For shorter connections, EMMCCLK_48 (divider 10, ~48MHz) is typical.
 	 * [CH569DS1.PDF: R16_EMMC_CLK_DIV register] */
 	if(mode < 4)
-		R16_EMMC_CLK_DIV = RB_EMMC_CLKMode | RB_EMMC_PHASEINV | RB_EMMC_CLKOE | LOWEMMCCLK;
+		R16_EMMC_CLK_DIV = RB_EMMC_CLKMode | RB_EMMC_PHASEINV | RB_EMMC_CLKOE | EMMCCLK_48;
 	else
-		R16_EMMC_CLK_DIV = RB_EMMC_CLKMode | RB_EMMC_CLKOE | LOWEMMCCLK;
+		R16_EMMC_CLK_DIV = RB_EMMC_CLKMode | RB_EMMC_CLKOE | EMMCCLK_48;
 
 	return OP_SUCCESS;
 }
