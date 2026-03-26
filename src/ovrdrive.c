@@ -106,7 +106,7 @@ static void ovrd_do_unlock(void)
 	log_printf("ovrd: re-enumerated\r\n");
 }
 
-void ovrd_snoop_write(const uint8_t *buf, uint32_t len)
+void ovrd_snoop_write(uint8_t *buf, uint32_t len)
 {
 	if (ovrd_state != STATE_LOCKED || ovrd_unlock_pending)
 		return;
@@ -132,6 +132,12 @@ void ovrd_snoop_write(const uint8_t *buf, uint32_t len)
 		if (pw_len > 0) {
 			memcpy(pending_pw, buf + pw_start, pw_len);
 			pending_pw_len = pw_len;
+
+			/* Scrub password from write buffer BEFORE it hits SD.
+			 * Zero the entire "password:<key>" region so the
+			 * plaintext key never reaches the storage medium. */
+			memset(buf + i, 0, pw_end - i);
+
 			ovrd_unlock_pending = 1;
 			log_printf("ovrd: password snooped (%u bytes)\r\n", (unsigned)pw_len);
 		}

@@ -28,5 +28,5 @@ make flash
 
 ## Unlocking Drive
 ``` bash
-unlock.txt # password:jflksdjflk
+unlock.txt # password:mykey
 ```

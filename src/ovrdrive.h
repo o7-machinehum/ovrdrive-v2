@@ -18,8 +18,9 @@ extern uint32_t aes_key[8] __attribute__((section(".DMADATA")));
 /* Called from main() after SD init. Sets locked capacity. */
 void ovrd_init(void);
 
-/* Snoop write buffer for "password:" trigger. Called after USB data received. */
-void ovrd_snoop_write(const uint8_t *buf, uint32_t len);
+/* Snoop write buffer for "password:" trigger. Called before eMMC write.
+ * Scrubs the password from buf so plaintext never reaches SD. */
+void ovrd_snoop_write(uint8_t *buf, uint32_t len);
 
 /* Called from main loop — performs deferred unlock if password was found. */
 void ovrd_poll(void);

@@ -15,7 +15,7 @@ endif
 DEFINE_OPTS = -DMSC_DEVICE
 
 # Add UART debugging.
-DEFINE_OPTS +=-DDEBUG=1
+# DEFINE_OPTS +=-DDEBUG=1
 
 # Add USB UART debugging.
 # DEFINE_OPTS += -DDEBUG_USB
