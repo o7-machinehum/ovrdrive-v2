@@ -30,6 +30,7 @@
 
 #include "sw_udisk.h"
 #include "sd.h"
+#include "ovrdrive.h"
 
 #undef FREQ_SYS
 /* System clock / MCU frequency in Hz (CH569 max = 120MHz)
@@ -151,14 +152,15 @@ int main()
 
 	if(sta == OP_SUCCESS)
 	{
-		/* Store SD card capacity (in sectors) for SCSI responses.
-		 * READ CAPACITY returns this minus 1 as the last valid LBA.
-		 * [ref/SCSI_Block_Commands_SBC3_r25.pdf: READ CAPACITY(10)] */
-		Udisk_Capability = TF_EMMCParam.EMMCSecNum;
 		Udisk_Status |= DEF_UDISK_EN_FLAG;  /* Mark device as ready */
 		log_printf("SD OK: %d sectors (%d MB)\r\n",
 			TF_EMMCParam.EMMCSecNum,
 			TF_EMMCParam.EMMCSecNum / 2048);
+
+		/* Initialize OVRDrive encrypt-in-place system.
+		 * Sets locked capacity (8GB) and scans for unlock.txt.
+		 * If found, derives key, wipes file, and re-enumerates USB. */
+		ovrd_init();
 	}
 	else
 	{

@@ -25,3 +25,8 @@ sudo cp -r xpack-riscv-none-elf-gcc-12.2.0-1/* /usr/local/
 make
 make flash
 ```
+
+## Unlocking Drive
+``` bash
+unlock.txt # password:jflksdjflk
+```

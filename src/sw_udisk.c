@@ -35,6 +35,7 @@
  *******************************************************************************/
 
 #include "sw_udisk.h"
+#include "ovrdrive.h"
 #include "CH56x_debug_log.h"
 
 /******************************************************************************/
@@ -488,7 +489,9 @@ void UDISK_SCSI_CMD_Deal( void )
         /* Always set CSW pending - every CBW requires a CSW response */
         Udisk_Transfer_Status |= DEF_UDISK_CSW_UP_FLAG;
 
+#ifdef DEBUG_USB
         log_printf("CBW: cmd=0x%02X len=%d\r\n", mBOC.mCBW.mCBW_CB_Buf[ 0 ], UDISK_Transfer_DataLen);
+#endif
 
         /* Dispatch based on SCSI opcode (byte 0 of the Command Block).
          * The Command Block is at CBW bytes 15-30, mapped to mCBW_CB_Buf[0..15].
@@ -755,7 +758,9 @@ void UDISK_SCSI_CMD_Deal( void )
                 /* Unsupported SCSI command - return ILLEGAL REQUEST (0x05)
                  * with ASC 0x20 (INVALID COMMAND OPERATION CODE).
                  * [ref/SCSI_Block_Commands_SBC3_r25.pdf: Sense Keys] */
+#ifdef DEBUG_USB
                 log_printf("SCSI: unsupported cmd 0x%02X\r\n", mBOC.mCBW.mCBW_CB_Buf[ 0 ]);
+#endif
                 UDISK_CMD_Deal_Status( 0x05, 0x20, 0x01 );
                 Udisk_Transfer_Status |= DEF_UDISK_BLUCK_UP_FLAG;
                 UDISK_CMD_Deal_Fail( );
@@ -971,7 +976,9 @@ void UDISK_Bulk_UpData( void )
 void UDISK_Up_CSW( void )
 {
     Udisk_Transfer_Status = 0x00;
+#ifdef DEBUG_USB
     log_printf("CSW: sta=%d\r\n", Udisk_CSW_Status);
+#endif
 
     /* Build CSW in mBOC union (overlays the same buffer as CBW) */
     mBOC.mCSW.mCSW_Sig[ 0 ] = 'U';
@@ -1049,6 +1056,10 @@ void UDISK_onePack_Deal( void )
             USB30_send_ERDY(ENDP_1 | OUT, DEF_ENDP1_OUT_BURST_LEVEL);
         }
     }
+
+    /* Deferred unlock scan — runs in main loop context after write completes,
+     * so USB bus is idle and it's safe to do SD reads + USB3_force(). */
+    ovrd_poll();
 }
 
 /*******************************************************************************
@@ -1102,7 +1113,12 @@ void UDISK_Up_OnePack( void )
     preqnum = UDISK_Transfer_DataLen / 512;
     UDISK_Transfer_DataLen = 0;
 
-    cprintf("R lba=%lu n=%u\r\n", UDISK_Cur_Sec_Lba, preqnum);
+    /* LBA offset: in unlocked mode, host LBA 0 maps to physical SD sector LOCKED_SECTORS */
+    uint32_t actual_lba = UDISK_Cur_Sec_Lba;
+    if (ovrd_state == STATE_UNLOCKED)
+        actual_lba += LOCKED_SECTORS;
+
+    cprintf("R lba=%lu n=%u\r\n", actual_lba, preqnum);
 
     if( g_DeviceUsbType == USB_U20_SPEED )
     {
@@ -1124,7 +1140,7 @@ void UDISK_Up_OnePack( void )
 
         /* Diagnostic: verify eMMC and USB buffer integrity during read.
          * Checks first uint32 of each sector (should equal LBA with test pattern). */
-        uint32_t start_lba = UDISK_Cur_Sec_Lba;
+        uint32_t start_lba = actual_lba;
         uint16_t sd_err = 0, usb_err = 0;
         uint32_t sd_first_exp = 0, sd_first_got = 0;
         uint32_t usb_first_exp = 0, usb_first_got = 0;
@@ -1141,7 +1157,7 @@ void UDISK_Up_OnePack( void )
         R32_EMMC_TRAN_MODE = (1<<4)|(1<<1); /* AUTOGAPSTOP | GAP_STOP */
         R32_EMMC_BLOCK_CFG = (512)<<16 | preqnum;
 
-        cmd_arg_val = UDISK_Cur_Sec_Lba;
+        cmd_arg_val = actual_lba;
         cmd_set_val = RB_EMMC_CKIDX | RB_EMMC_CKCRC | RESP_TYPE_48 | EMMC_CMD18;
         EMMCSendCmd(cmd_arg_val, cmd_set_val);
 
@@ -1207,6 +1223,9 @@ void UDISK_Up_OnePack( void )
              * completed transfer (TRANDONE) */
             if( R16_EMMC_INT_FG & RB_EMMC_IF_BKGAP )
             {
+                /* Decrypt sector in-place before USB can send it */
+                if (ovrd_state == STATE_UNLOCKED)
+                    ovrd_decrypt_buf(UDisk_In_Buf + sdstep * 512, actual_lba + sdtran, 1);
                 /* Diag: verify eMMC delivered correct sector before advancing */
                 {
                     uint32_t exp = start_lba + sdtran;
@@ -1229,6 +1248,9 @@ void UDISK_Up_OnePack( void )
             }
             else if( R16_EMMC_INT_FG & RB_EMMC_IF_TRANDONE )
             {
+                /* Decrypt last sector in-place */
+                if (ovrd_state == STATE_UNLOCKED)
+                    ovrd_decrypt_buf(UDisk_In_Buf + sdstep * 512, actual_lba + sdtran, 1);
                 /* Diag: verify last eMMC sector */
                 {
                     uint32_t exp = start_lba + sdtran;
@@ -1342,7 +1364,7 @@ void UDISK_Up_OnePack( void )
         R32_EMMC_TRAN_MODE = (1<<4)|(1<<1); /* AUTOGAPSTOP | GAP_STOP */
         R32_EMMC_BLOCK_CFG = (512)<<16 | preqnum;
 
-        cmd_arg_val = UDISK_Cur_Sec_Lba;
+        cmd_arg_val = actual_lba;
         cmd_set_val = RB_EMMC_CKIDX | RB_EMMC_CKCRC | RESP_TYPE_48 | EMMC_CMD18;
         EMMCSendCmd(cmd_arg_val, cmd_set_val);
 
@@ -1372,6 +1394,9 @@ void UDISK_Up_OnePack( void )
             if( R16_EMMC_INT_FG & RB_EMMC_IF_BKGAP )
             {
                 R16_EMMC_INT_FG = RB_EMMC_IF_BKGAP;
+                /* Decrypt sector in-place before USB can send it */
+                if (ovrd_state == STATE_UNLOCKED)
+                    ovrd_decrypt_buf(UDisk_In_Buf + sdstep * 512, actual_lba + sdtran, 1);
                 sdtran++;
                 sdstep++;
                 if( sdstep == UDISKSIZE/512 ) sdstep = 0;
@@ -1384,6 +1409,9 @@ void UDISK_Up_OnePack( void )
             else if( R16_EMMC_INT_FG & RB_EMMC_IF_TRANDONE )
             {
                 R16_EMMC_INT_FG = RB_EMMC_IF_TRANDONE | RB_EMMC_IF_CMDDONE;
+                /* Decrypt last sector in-place */
+                if (ovrd_state == STATE_UNLOCKED)
+                    ovrd_decrypt_buf(UDisk_In_Buf + sdstep * 512, actual_lba + sdtran, 1);
                 sdtran++;
                 sdstep++;
                 break;
@@ -1586,21 +1614,32 @@ void UDISK_Down_OnePack( void )
                         ckfirst, cksecond, chunk_sectors-1, cklast);
             }
 
+            /* Snoop write data for unlock password before encryption */
+            ovrd_snoop_write(UDisk_Out_Buf, (uint32_t)chunk_sectors * 512);
+
             /* ── Phase 2: Write chunk to SD card via BSP ──
              * EMMCCardWriteMulSec() handles CMD25, gap stop release via
              * R32_EMMC_RESPONSE3=0, and CMD12 internally.
              * Disable EMMC IRQ during transfer to prevent ISR from
              * interfering with the BSP's polling loop.
              * [wch-ch56x-bsp/drv/CH56x_emmc.c: EMMCCardWriteMulSec()] */
-            PFIC_DisableIRQ(EMMC_IRQn);
-            R16_EMMC_INT_FG = 0xffff;
-            TF_EMMCParam.EMMCOpErr = 0;
-            TF_EMMCParam.EMMCSecSize = 512;  /* Always use 512-byte blocks */
-            reqnum = chunk_sectors;
-            s = EMMCCardWriteMulSec(&TF_EMMCParam, &reqnum, UDisk_Out_Buf, lba);
-            R16_EMMC_INT_FG = 0xffff;
-            TF_EMMCParam.EMMCOpErr = 0;
-            PFIC_EnableIRQ(EMMC_IRQn);
+            {
+                uint32_t write_lba = lba;
+                if (ovrd_state == STATE_UNLOCKED) {
+                    write_lba = lba + LOCKED_SECTORS;
+                    ovrd_encrypt_buf(UDisk_Out_Buf, write_lba, chunk_sectors);
+                }
+
+                PFIC_DisableIRQ(EMMC_IRQn);
+                R16_EMMC_INT_FG = 0xffff;
+                TF_EMMCParam.EMMCOpErr = 0;
+                TF_EMMCParam.EMMCSecSize = 512;  /* Always use 512-byte blocks */
+                reqnum = chunk_sectors;
+                s = EMMCCardWriteMulSec(&TF_EMMCParam, &reqnum, UDisk_Out_Buf, write_lba);
+                R16_EMMC_INT_FG = 0xffff;
+                TF_EMMCParam.EMMCOpErr = 0;
+                PFIC_EnableIRQ(EMMC_IRQn);
+            }
 
             cprintf("W s=%u req=%u act=%u\r\n", s, chunk_sectors, reqnum);
 
@@ -1685,16 +1724,27 @@ void UDISK_Down_OnePack( void )
                 cprintf("W ck0=%08lx ck%u=%08lx\r\n", ckfirst, chunk_sectors-1, cklast);
             }
 
+            /* Snoop write data for unlock password before encryption */
+            ovrd_snoop_write(UDisk_Out_Buf, (uint32_t)chunk_sectors * 512);
+
             /* Phase 2: Write chunk to SD card via BSP */
-            PFIC_DisableIRQ(EMMC_IRQn);
-            R16_EMMC_INT_FG = 0xffff;
-            TF_EMMCParam.EMMCOpErr = 0;
-            TF_EMMCParam.EMMCSecSize = 512;  /* Always use 512-byte blocks */
-            reqnum = chunk_sectors;
-            s = EMMCCardWriteMulSec(&TF_EMMCParam, &reqnum, UDisk_Out_Buf, lba);
-            R16_EMMC_INT_FG = 0xffff;
-            TF_EMMCParam.EMMCOpErr = 0;
-            PFIC_EnableIRQ(EMMC_IRQn);
+            {
+                uint32_t write_lba = lba;
+                if (ovrd_state == STATE_UNLOCKED) {
+                    write_lba = lba + LOCKED_SECTORS;
+                    ovrd_encrypt_buf(UDisk_Out_Buf, write_lba, chunk_sectors);
+                }
+
+                PFIC_DisableIRQ(EMMC_IRQn);
+                R16_EMMC_INT_FG = 0xffff;
+                TF_EMMCParam.EMMCOpErr = 0;
+                TF_EMMCParam.EMMCSecSize = 512;  /* Always use 512-byte blocks */
+                reqnum = chunk_sectors;
+                s = EMMCCardWriteMulSec(&TF_EMMCParam, &reqnum, UDisk_Out_Buf, write_lba);
+                R16_EMMC_INT_FG = 0xffff;
+                TF_EMMCParam.EMMCOpErr = 0;
+                PFIC_EnableIRQ(EMMC_IRQn);
+            }
 
             cprintf("W s=%u req=%u act=%u\r\n", s, chunk_sectors, reqnum);
 
