@@ -48,3 +48,17 @@ sudo echo "password:YourPasswordHere13245" > /mnt/unlock.txt
 ``` bash
 ./scripts/release_hardware.sh
 ```
+
+# Notes
+## SDIO Pinout
+```
+Data2        -> DP_D6 -> (PB19)
+Data3        -> DP_D5 -> (PB20)
+Command Line -> DP_D9 -> (PB16)
+VSS1         -> GND
+VDD          -> 3.3V
+CLK Line     -> DP_D11 -> (PB14)
+VSS2         -> GND
+Data0        -> DP_D8 -> (PB17)
+Data1        -> DP_D7 -> (PB18)
+```
