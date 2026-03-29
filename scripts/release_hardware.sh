@@ -10,9 +10,10 @@ rm -r out/$VER/ 2>/dev/null
 mkdir out/$VER/ 2>/dev/null
 mkdir out/$VER/fab/ 2>/dev/null
 mkdir out/$VER/fab/gerber/ 2>/dev/null
+cp readme.txt out/$VER/fab/
 
 kicad-cli pcb export gerbers \
-    --layers 'F.Cu,In1.Cu,In2.Cu,B.Cu,F.Fab,B.Fab,F.SilkS,B.SilkS,F.Mask,B.Mask,Edge.Cuts,F.Paste,B.Paste,User.9' \
+    --layers 'F.Cu,In1.Cu,In2.Cu,B.Cu,F.Fab,B.Fab,F.SilkS,B.SilkS,F.Mask,B.Mask,Edge.Cuts,F.Paste,B.Paste,User.1,User.9' \
     --output out/$VER/fab/gerber/ \
     --no-x2 \
     --subtract-soldermask \
