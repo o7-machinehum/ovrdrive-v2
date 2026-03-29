@@ -1,0 +1,6 @@
+(sym_lib_table
+  (version 7)
+  (lib (name "JDEC_FLASH")(type "KiCad")(uri "${KIPRJMOD}/../lib/jdec_flash.kicad_sym")(options "")(descr ""))
+  (lib (name "sm3257en")(type "KiCad")(uri "${KIPRJMOD}/../lib/sm3257en.kicad_sym")(options "")(descr ""))
+  (lib (name "ch565w")(type "KiCad")(uri "/home/machinehum/projects/ovrdrive-v2/ee/lib/ch565w.kicad_sym")(options "")(descr ""))
+)
