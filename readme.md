@@ -1,5 +1,16 @@
 # Ovrdrive v2
-Firmware for Ovrdrive v2 - the worlds only self-destructing USB drive.
+Ovrdrive V2 is open source encrypted USB drive with a stealth mechanism to hide its second partition. To decrypt it you must create a file called password.txt containing your password, this is used to derive a AES-256 key. The drive automatically unmounts itself, remounts the remaining disk and encrypts and decrypts in place. It uses CH569W SoC, which has USB3, SDIO and an AES hardware block. It is programmable over USB using the `wch-ch56x-isp` library.
+
+``` bash
+|-- ee             # Hardware files
+|-- Makefile
+|-- readme.md      # These files
+|-- ref            # Reference docs
+|-- src            # Firmware
+|-- tests          # Verification scripts
+|-- wch-ch56x-bsp  # Board support package
+`-- wch-ch56x-isp  # Programming software
+```
 
 ## Getting Started
 ``` bash
@@ -20,13 +31,15 @@ tar xzf riscv-gcc-xpack.tar.gz
 sudo cp -r xpack-riscv-none-elf-gcc-12.2.0-1/* /usr/local/
 ```
 
-## Build the project
-```
+## Build and Flashing the project
+``` bash
 make
+# Remove flash drive
+# While holding boot button, plug in
 make flash
 ```
 
 ## Unlocking Drive
 ``` bash
-unlock.txt # password:mykey
+sudo echo "password:YourPasswordHere13245" > /mnt/unlock.txt
 ```
