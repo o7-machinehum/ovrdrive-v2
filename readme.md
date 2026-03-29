@@ -4,7 +4,7 @@ Ovrdrive V2 is open source encrypted USB drive with a stealth mechanism to hide 
 ``` bash
 |-- ee             # Hardware files
 |-- Makefile
-|-- readme.md      # These files
+|-- readme.md      # This files
 |-- ref            # Reference docs
 |-- src            # Firmware
 |-- tests          # Verification scripts
