@@ -12,7 +12,7 @@ Ovrdrive V2 is open source encrypted USB drive with a stealth mechanism to hide 
 `-- wch-ch56x-isp  # Programming software
 ```
 
-## Getting Started
+# Getting Started
 ``` bash
 git submodule update --init --recursive --checkout --force
 cd wch-ch56x-isp
@@ -42,4 +42,9 @@ make flash
 ## Unlocking Drive
 ``` bash
 sudo echo "password:YourPasswordHere13245" > /mnt/unlock.txt
+```
+
+# Releasing the hardware
+``` bash
+./scripts/release_hardware.sh
 ```
