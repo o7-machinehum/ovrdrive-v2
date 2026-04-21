@@ -1,6 +1,6 @@
 #include "ovrdrive.h"
 #include "crypto.h"
-#include "sw_udisk.h"
+#include "bot_state.h"
 #include "CH56x_ecdc.h"
 #include "CH56x_debug_log.h"
 #include <string.h>
@@ -8,45 +8,35 @@
 volatile uint8_t ovrd_state = STATE_LOCKED;
 volatile uint8_t ovrd_unlock_pending = 0;
 
-/* AES-256 key in RAMX for DMA access by ECDC */
 __attribute__((aligned(16))) uint32_t aes_key[8] __attribute__((section(".DMADATA")));
-
-/* Small test buffer in RAMX for ECDC self-test */
 __attribute__((aligned(16))) static uint8_t ecdc_test_buf[16] __attribute__((section(".DMADATA")));
 
-/* Pending password extracted from write buffer */
 static uint8_t pending_pw[128];
 static size_t pending_pw_len;
 
 void ovrd_init(void)
 {
-	/* Ensure ECDC is fully disabled — prevent stale state from
-	 * corrupting eMMC-to-RAMX DMA in locked mode */
 	R16_ECEC_CTRL = 0;
 	R8_ECDC_INT_FG = 0xFF;
 
-	Udisk_Capability = LOCKED_SECTORS;
+	g_bot.capacity = LOCKED_SECTORS;
 	ovrd_state = STATE_LOCKED;
 	log_printf("ovrd: locked, %lu sectors\r\n", LOCKED_SECTORS);
 }
 
-/* Run ECDC self-test: encrypt 16 bytes of zeros, verify non-zero,
- * encrypt again (CTR is involutory), verify zeros restored. */
+/* Encrypt zeros, re-encrypt (CTR involutory), verify zeros restored */
 static void ecdc_selftest(void)
 {
 	uint32_t ctr[4] = {0, 0x12345678, 0, 0};
 
-	/* Fill test buffer with zeros */
 	memset(ecdc_test_buf, 0, 16);
 	uint32_t before = *(uint32_t*)ecdc_test_buf;
 
-	/* Encrypt: SRAM_LEN is in 128-bit (16-byte) units per CH569 datasheet Ch15 */
 	ECDC_SetCount((puint32_t)ctr);
 	ECDC_Excute(SELFDMA_ENCRY, MODE_LITTLE_ENDIAN);
-	ECDC_SelfDMA((uint32_t)ecdc_test_buf, 1);  /* 1 × 16 bytes = 16 bytes */
+	ECDC_SelfDMA((uint32_t)ecdc_test_buf, 1);
 	uint32_t after_enc = *(uint32_t*)ecdc_test_buf;
 
-	/* Decrypt (same as encrypt for CTR) */
 	ECDC_SetCount((puint32_t)ctr);
 	ECDC_Excute(SELFDMA_ENCRY, MODE_LITTLE_ENDIAN);
 	ECDC_SelfDMA((uint32_t)ecdc_test_buf, 1);
@@ -56,7 +46,7 @@ static void ecdc_selftest(void)
 	           before, after_enc, after_dec,
 	           (after_enc != 0 && after_dec == 0) ? "PASS" : "FAIL");
 
-	/* Also test with SELFDMA_DECRY to see if it differs */
+	/* Verify SELFDMA_DECRY behaves same as SELFDMA_ENCRY for CTR */
 	memset(ecdc_test_buf, 0, 16);
 	ECDC_SetCount((puint32_t)ctr);
 	ECDC_Excute(SELFDMA_ENCRY, MODE_LITTLE_ENDIAN);
@@ -84,23 +74,19 @@ static void ovrd_do_unlock(void)
 	memset(pending_pw, 0, sizeof(pending_pw));
 	pending_pw_len = 0;
 
-	/* Initialize ECDC for AES-256-CTR */
 	uint32_t initial_ctr[4] = {0, 0, 0, 0};
 	ECDC_Init(MODE_AES_CTR, ECDCCLK_240MHZ, KEYLENGTH_256BIT,
 	          (puint32_t)aes_key, (puint32_t)initial_ctr);
-
-	/* Verify ECDC hardware is working */
 	ecdc_selftest();
 
-	Udisk_Capability = TF_EMMCParam.EMMCSecNum - LOCKED_SECTORS;
+	g_bot.capacity = TF_EMMCParam.EMMCSecNum - LOCKED_SECTORS;
 	ovrd_state = STATE_UNLOCKED;
 
-	log_printf("ovrd: unlocked, %lu sectors\r\n", Udisk_Capability);
+	log_printf("ovrd: unlocked, %lu sectors\r\n", g_bot.capacity);
 
-	/* Reset BOT state and re-enumerate USB */
-	Udisk_Transfer_Status = 0;
-	UDISK_InPackflag = 0;
-	UDISK_OutPackflag = 0;
+	g_bot.transfer_flags = 0;
+	g_bot.read_pending = 0;
+	g_bot.write_pending = 0;
 	USB3_force();
 
 	log_printf("ovrd: re-enumerated\r\n");
@@ -121,7 +107,6 @@ void ovrd_snoop_write(uint8_t *buf, uint32_t len)
 		if (memcmp(buf + i, prefix, prefix_len) != 0)
 			continue;
 
-		/* Found "password:" — extract until newline/CR/null */
 		size_t pw_start = i + prefix_len;
 		size_t pw_end = pw_start;
 		while (pw_end < len && (pw_end - pw_start) < sizeof(pending_pw) &&
@@ -133,9 +118,7 @@ void ovrd_snoop_write(uint8_t *buf, uint32_t len)
 			memcpy(pending_pw, buf + pw_start, pw_len);
 			pending_pw_len = pw_len;
 
-			/* Scrub password from write buffer BEFORE it hits SD.
-			 * Zero the entire "password:<key>" region so the
-			 * plaintext key never reaches the storage medium. */
+			/* Scrub plaintext password before it reaches SD */
 			memset(buf + i, 0, pw_end - i);
 
 			ovrd_unlock_pending = 1;
@@ -163,52 +146,26 @@ static void ecdc_set_sector_nonce(uint32_t sd_lba)
 	ECDC_SetCount((puint32_t)ctr);
 }
 
-void ovrd_encrypt_buf(uint8_t *buf, uint32_t sd_lba, uint16_t num_sectors)
+/* ECDC SRAM_LEN is in 128-bit (16-byte) units [CH569DS1 Ch15] */
+void ovrd_crypt_buf(uint8_t *buf, uint32_t sd_lba, uint16_t num_sectors)
 {
-	static uint8_t elog = 0;
+	static uint8_t clog = 0;
 	uint32_t pre = *(volatile uint32_t*)buf;
 
 	uint16_t i;
 	for (i = 0; i < num_sectors; i++) {
 		ecdc_set_sector_nonce(sd_lba + i);
 		ECDC_Excute(SELFDMA_ENCRY, MODE_LITTLE_ENDIAN);
-		/* SRAM_LEN is in 128-bit units: 512 bytes / 16 = 32 */
-		ECDC_SelfDMA((uint32_t)(buf + i * 512), 32);
+		ECDC_SelfDMA((uint32_t)(buf + i * SECTOR_SIZE), SECTOR_SIZE / 16);
 	}
-	/* Disable ECDC operational bits so subsequent eMMC DMA is not
-	 * intercepted. WRPERI_EN stays set after ECDC_Excute and would
-	 * cause eMMC DMA (SRAM→peripheral) to be encrypted a second time. */
+	/* Disable ECDC so subsequent eMMC DMA isn't double-encrypted */
 	R16_ECEC_CTRL &= ~(RB_ECDC_WRSRAM_EN | RB_ECDC_WRPERI_EN |
 	                    RB_ECDC_RDPERI_EN | RB_ECDC_MODE_SEL);
 
-	if (elog < 5) {
+	if (clog < 5) {
 		uint32_t post = *(volatile uint32_t*)buf;
-		log_printf("E lba=%lu n=%u %08lx->%08lx ctrl=%04x\r\n",
+		log_printf("C lba=%lu n=%u %08lx->%08lx ctrl=%04x\r\n",
 		           sd_lba, num_sectors, pre, post, R16_ECEC_CTRL);
-		elog++;
-	}
-}
-
-void ovrd_decrypt_buf(uint8_t *buf, uint32_t sd_lba, uint16_t num_sectors)
-{
-	static uint8_t dlog = 0;
-	uint32_t pre = *(volatile uint32_t*)buf;
-
-	uint16_t i;
-	for (i = 0; i < num_sectors; i++) {
-		ecdc_set_sector_nonce(sd_lba + i);
-		ECDC_Excute(SELFDMA_ENCRY, MODE_LITTLE_ENDIAN);
-		/* SRAM_LEN is in 128-bit units: 512 bytes / 16 = 32 */
-		ECDC_SelfDMA((uint32_t)(buf + i * 512), 32);
-	}
-	/* Disable ECDC so eMMC DMA for next sector isn't intercepted */
-	R16_ECEC_CTRL &= ~(RB_ECDC_WRSRAM_EN | RB_ECDC_WRPERI_EN |
-	                    RB_ECDC_RDPERI_EN | RB_ECDC_MODE_SEL);
-
-	if (dlog < 5) {
-		uint32_t post = *(volatile uint32_t*)buf;
-		log_printf("D lba=%lu n=%u %08lx->%08lx ctrl=%04x\r\n",
-		           sd_lba, num_sectors, pre, post, R16_ECEC_CTRL);
-		dlog++;
+		clog++;
 	}
 }

@@ -4,3 +4,4 @@ compile_commands.json
 ee/ovrdrive/ovrdrive-backups/
 logs/
 media/
+.history

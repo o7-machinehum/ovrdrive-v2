@@ -29,8 +29,8 @@ kicad-cli pcb export drill \
 
 kicad-cli sch export bom \
     --output out/$VER/fab/bom.csv \
-    --fields 'Reference,Value,Footprint,${QUANTITY}' \
-    --labels 'Designator,Value,Footprint,Quantity' \
+    --fields 'Reference,Value,Footprint,${QUANTITY},MPN' \
+    --labels 'Designator,Value,Footprint,Quantity,Part Number' \
     --group-by 'Value,Footprint' \
     --sort-field 'Reference' \
     --sort-asc \
