@@ -5,6 +5,7 @@ Ovrdrive V2 is open source encrypted USB drive with a stealth mechanism to hide 
 |-- ee             # Hardware files
 |-- Makefile
 |-- readme.md      # This files
+|-- test           # Test the cypto components
 |-- ref            # Reference docs
 |-- src            # Firmware
 |-- tests          # Verification scripts
