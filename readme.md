@@ -1,5 +1,6 @@
 # Phantomdrive
-![](img/Logo.png)
+![](img/Logo_white_big.png)
+
 Phantomdrive is open source encrypted USB drive with a stealth mechanism to hide its second partition. To decrypt it you must create a file called unlock.txt containing your password in the format `password:addpasswordhere`, this is used to derive a AES-256 key. The drive automatically unmounts itself, remounts the remaining disk and encrypts and decrypts in place. It uses CH569W SoC, which has USB3, SDIO and an AES hardware block. It is programmable over USB using the `wch-ch56x-isp` library.
 
 ``` bash
