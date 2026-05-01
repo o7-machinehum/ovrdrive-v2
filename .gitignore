@@ -5,3 +5,5 @@ ee/ovrdrive/ovrdrive-backups/
 logs/
 media/
 .history
+*.o
+*.lck

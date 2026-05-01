@@ -7,6 +7,7 @@
 
 #define BOLDRED     "\033[1m\033[31m"
 #define BOLDGREEN   "\033[1m\033[32m"
+#define ENDCOLOUR "\033[0m"
 
 // Print hash
 void print_sha256(unsigned char* hash) {
@@ -43,9 +44,9 @@ int main() {
 
 	// Test
 	if(test_sha256(hash, our_hash)) {
-		printf(BOLDGREEN "Test Passed\n");
+		printf(BOLDGREEN "Test Passed\n" ENDCOLOUR);
 	} else {
-		printf(BOLDRED "Test Failed\n");
+		printf(BOLDRED "Test Failed\n" ENDCOLOUR);
 	}
 
     return 0;

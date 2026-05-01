@@ -5,7 +5,13 @@ LDLIBS = -lcrypto
 sha256_test: sha256_test.o crypto.o
 	$(CC) $^ $(LDLIBS) -o $@
 
+kdf_test: kdf.o crypto.o
+	$(CC) $^ $(LDLIBS) -o $@
+
 sha256_test.o: sha256_test.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+kdf.o: kdf.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 crypto.o: ../src/crypto.c
@@ -14,5 +20,6 @@ crypto.o: ../src/crypto.c
 clean:
 	rm -f sha256_test *.o
 
-test: sha256_test
+all: sha256_test kdf_test
 	./sha256_test
+	./kdf_test

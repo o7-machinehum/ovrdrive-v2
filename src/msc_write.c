@@ -54,7 +54,9 @@ static void write_stream_usb2(uint16_t total_sectors, uint32_t lba)
         uint16_t sectors_received = 0;
 
         R8_USB_INT_FG = RB_USB_IF_TRANSFER;
+#ifdef DEBUG_USB
         cprintf("W lba=%lu n=%u\r\n", lba, chunk_sectors);
+#endif
 
         /* First sector already in endp1Rbuff from USB ISR */
         if (first) {
@@ -125,7 +127,9 @@ static void write_stream_usb3(uint16_t total_sectors, uint32_t lba)
         uint16_t chunk_sectors = (sectors_left > buf_sectors) ? buf_sectors : sectors_left;
         uint16_t sectors_received = 0;
 
+#ifdef DEBUG_USB
         cprintf("W lba=%lu n=%u\r\n", lba, chunk_sectors);
+#endif
 
         /* First burst (up to 2 sectors) already in endp1Rbuff */
         if (first) {

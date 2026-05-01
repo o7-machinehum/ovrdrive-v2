@@ -13,6 +13,7 @@ __attribute__((aligned(16))) static uint8_t ecdc_test_buf[16] __attribute__((sec
 
 static uint8_t pending_pw[128];
 static size_t pending_pw_len;
+static uint8_t pw_partial;
 
 void ovrd_init(void)
 {
@@ -97,6 +98,26 @@ void ovrd_snoop_write(uint8_t *buf, uint32_t len)
 	if (ovrd_state != STATE_LOCKED || ovrd_unlock_pending)
 		return;
 
+	/* Continue appending password from previous buffer */
+	if (pw_partial) {
+		size_t end = 0;
+		while (end < len && pending_pw_len < sizeof(pending_pw) &&
+		       buf[end] != '\n' && buf[end] != '\r' && buf[end] != '\0')
+			pending_pw[pending_pw_len++] = buf[end++];
+
+		memset(buf, 0, end);
+
+		if (end < len || pending_pw_len >= sizeof(pending_pw)) {
+			pw_partial = 0;
+			if (pending_pw_len > 0) {
+				ovrd_unlock_pending = 1;
+				log_printf("ovrd: password snooped (%u bytes)\r\n",
+				           (unsigned)pending_pw_len);
+			}
+		}
+		return;
+	}
+
 	const char *prefix = "password:";
 	const size_t prefix_len = 9;
 	uint32_t i;
@@ -114,15 +135,18 @@ void ovrd_snoop_write(uint8_t *buf, uint32_t len)
 			pw_end++;
 
 		size_t pw_len = pw_end - pw_start;
-		if (pw_len > 0) {
-			memcpy(pending_pw, buf + pw_start, pw_len);
-			pending_pw_len = pw_len;
+		memcpy(pending_pw, buf + pw_start, pw_len);
+		pending_pw_len = pw_len;
+		memset(buf + i, 0, pw_end - i);
 
-			/* Scrub plaintext password before it reaches SD */
-			memset(buf + i, 0, pw_end - i);
-
-			ovrd_unlock_pending = 1;
-			log_printf("ovrd: password snooped (%u bytes)\r\n", (unsigned)pw_len);
+		if (pw_end < len || pw_len >= sizeof(pending_pw)) {
+			if (pw_len > 0) {
+				ovrd_unlock_pending = 1;
+				log_printf("ovrd: password snooped (%u bytes)\r\n",
+				           (unsigned)pw_len);
+			}
+		} else {
+			pw_partial = 1;
 		}
 		return;
 	}
@@ -162,10 +186,12 @@ void ovrd_crypt_buf(uint8_t *buf, uint32_t sd_lba, uint16_t num_sectors)
 	R16_ECEC_CTRL &= ~(RB_ECDC_WRSRAM_EN | RB_ECDC_WRPERI_EN |
 	                    RB_ECDC_RDPERI_EN | RB_ECDC_MODE_SEL);
 
+#ifdef DEBUG_USB
 	if (clog < 5) {
 		uint32_t post = *(volatile uint32_t*)buf;
 		log_printf("C lba=%lu n=%u %08lx->%08lx ctrl=%04x\r\n",
 		           sd_lba, num_sectors, pre, post, R16_ECEC_CTRL);
 		clog++;
 	}
+#endif
 }

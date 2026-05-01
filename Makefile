@@ -15,10 +15,14 @@ endif
 DEFINE_OPTS = -DMSC_DEVICE
 
 # Add UART debugging.
-# DEFINE_OPTS +=-DDEBUG=1
+ifeq ($(UART),1)
+DEFINE_OPTS += -DDEBUG=1
+endif
 
 # Add USB UART debugging.
-# DEFINE_OPTS += -DDEBUG_USB
+ifeq ($(DEBUG_USB), 1)
+DEFINE_OPTS += -DDEBUG_USB
+endif
 
 # Optimisation option(s)
 OPTIM_OPTS = -O3
@@ -148,6 +152,7 @@ $(PROJECT).siz: $(PROJECT).elf
 	@echo ' '
 
 flash: all
+	sudo ./wch-ch56x-isp/wch-ch56x-isp -d=off
 	sudo ./wch-ch56x-isp/wch-ch56x-isp -f "$(PROJECT).bin"
 
 # Other Targets

@@ -47,13 +47,12 @@ int main()
 #if(defined DEBUG)
 	UART1_init(UART1_BAUD, FREQ_SYS);
 #endif
-	log_printf("HydraUSB3_MSC Start\r\n");
-	log_printf("ChipID(Hex)=%02X\r\n", R8_CHIP_ID);
+	log_printf("Phantomdrive, ChipID(Hex)=%02X\r\n", SYS_GetChipID());
 
 	memset(&unique_id, 0, 8);
 	FLASH_ROMA_READ(FLASH_ROMA_UID_ADDR, (uint32_t*)&unique_id, 8);
 
-	log_printf("HydraUSB3_MSC FW v0.1 (CPr Freq=%d MHz)\r\n", (FREQ_SYS/1000000));
+	log_printf("Phantomdrive FW v0.1 (CPr Freq=%d MHz)\r\n", (FREQ_SYS/1000000));
 
 	R32_USB_CONTROL = 0;
 	PFIC_EnableIRQ(USBSS_IRQn);

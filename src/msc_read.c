@@ -129,7 +129,10 @@ static void read_stream_usb2(uint32_t actual_lba, uint16_t preqnum)
     }
 
     emmc_stop_multiblock_read();
-    diag_read_summary(&diag, preqnum, xfer_count, usbtran);
+
+#ifdef DEBUG_USB
+    diag_log_read_summary(&diag, preqnum, xfer_count, usbtran);
+#endif
 
     R8_UEP1_TX_CTRL &= ~RB_UEP_T_AUTOTOG;
     PFIC_EnableIRQ(USBHS_IRQn);
@@ -234,7 +237,9 @@ void msc_read_sectors(void)
 
     uint32_t actual_lba = compute_physical_lba(UDISK_Cur_Sec_Lba);
 
+#ifdef DEBUG_USB
     cprintf("R lba=%lu n=%u\r\n", actual_lba, preqnum);
+#endif
 
     if (g_DeviceUsbType == USB_U20_SPEED)
         read_stream_usb2(actual_lba, preqnum);
