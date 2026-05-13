@@ -18,7 +18,7 @@ crypto.o: ../src/crypto.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -f sha256_test *.o
+	rm -f sha256_test kdf_test *.o
 
 all: sha256_test kdf_test
 	./sha256_test

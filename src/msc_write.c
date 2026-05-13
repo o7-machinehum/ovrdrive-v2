@@ -30,7 +30,9 @@ static uint8_t write_chunk_to_sd(uint32_t write_lba, uint16_t chunk_sectors)
     TF_EMMCParam.EMMCOpErr = 0;
     PFIC_EnableIRQ(EMMC_IRQn);
 
+#ifdef DEBUG_USB
     cprintf("W s=%u req=%u act=%u\r\n", s, chunk_sectors, reqnum);
+#endif
     return s;
 }
 
@@ -76,17 +78,21 @@ static void write_stream_usb2(uint16_t total_sectors, uint32_t lba)
                 if (R8_USB_INT_FG & RB_USB_IF_SETUOACT)
                     R8_USB_INT_FG = RB_USB_IF_SETUOACT;
             }
+#ifdef DEBUG_USB
             {
                 uint8_t ist = R8_USB_INT_ST;
                 if ((ist & 0x0F) != 1)
                     cprintf("W !EP%u tok=%u rx=%u\r\n", ist & 0x0F, (ist >> 4) & 3, sectors_received);
             }
+#endif
             R8_USB_INT_FG = RB_USB_IF_TRANSFER;
             R8_UEP1_RX_CTRL = (R8_UEP1_RX_CTRL & ~RB_UEP_RRES_MASK) | UEP_R_RES_NAK;
             sectors_received++;
         }
 
+#ifdef DEBUG_USB
         diag_write_checksums_usb2(UDisk_Out_Buf, chunk_sectors);
+#endif
         ovrd_snoop_write(UDisk_Out_Buf, (uint32_t)chunk_sectors * SECTOR_SIZE);
 
         {
@@ -158,7 +164,9 @@ static void write_stream_usb3(uint16_t total_sectors, uint32_t lba)
             sectors_received += this_burst;
         }
 
+#ifdef DEBUG_USB
         diag_write_checksums_usb3(UDisk_Out_Buf, chunk_sectors);
+#endif
         ovrd_snoop_write(UDisk_Out_Buf, (uint32_t)chunk_sectors * SECTOR_SIZE);
 
         {
