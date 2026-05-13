@@ -480,14 +480,13 @@ static uint8_t SD_do_init(PSD_PARAMETER pEMMCPara, uint8_t mode)
 	if(sta != CMD_SUCCESS) return OP_FAILED;
 
 	/* Switch to operational clock speed.
-	 * CLKMode bit enables the high-speed clock divider.
-	 * Currently using LOWEMMCCLK (~15MHz) for reliability with long wires.
-	 * For shorter connections, EMMCCLK_48 (divider 10, ~48MHz) is typical.
+	 * Keep initialization at LOWEMMCCLK, then use the BSP high-speed setting
+	 * once the card is selected and running in 4-bit mode.
 	 * [CH569DS1.PDF: R16_EMMC_CLK_DIV register] */
 	if(mode < 4)
-		R16_EMMC_CLK_DIV = RB_EMMC_CLKMode | RB_EMMC_PHASEINV | RB_EMMC_CLKOE | EMMCCLK_48;
+		R16_EMMC_CLK_DIV = RB_EMMC_CLKMode | RB_EMMC_PHASEINV | RB_EMMC_CLKOE | HIGHEMMCCLK;
 	else
-		R16_EMMC_CLK_DIV = RB_EMMC_CLKMode | RB_EMMC_CLKOE | EMMCCLK_48;
+		R16_EMMC_CLK_DIV = RB_EMMC_CLKMode | RB_EMMC_CLKOE | HIGHEMMCCLK;
 
 	return OP_SUCCESS;
 }
